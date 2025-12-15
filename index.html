@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grand Luxury Tree v17.12 - Better Timing</title>
+    <title>Grand Luxury Tree v17.12 - Github Edition</title>
     <style>
         /* ================= 1. 基础设置 ================= */
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Great+Vibes&family=Monoton&family=Abril+Fatface&family=Ma+Shan+Zheng&display=swap');
@@ -237,13 +237,13 @@
             STATE.mode = mode;
             STATE.focusTarget = null;
             const hint = document.getElementById('gesture-hint');
-            // 修改了提示文本，指导用户使用 OK 或 捏合手势
-            if(mode === 'TREE') hint.innerText = "状态: 聚合 (比OK手势抓取照片)";
-            else if(mode === 'SCATTER') hint.innerText = "状态: 散开 (比OK手势抓取照片)";
-            else if(mode === 'FOCUS') hint.innerText = "状态: 照片展示中...";
+            // 修改后的提示文本
+            if(mode === 'TREE') hint.innerText = "状态: 聚合 (握拳保持 / 张开五指展示照片)";
+            else if(mode === 'SCATTER') hint.innerText = "状态: 散开 (张开五指切换 / 握拳返回)";
+            else if(mode === 'FOCUS') hint.innerText = "状态: 观赏 (张开五指切换 / 握拳返回)";
         }
 
-        // 双重停顿序列
+        // 修改后的照片轮播逻辑
         window.cycleNextPhoto = () => {
             if(autoPlayTimer) clearTimeout(autoPlayTimer);
             const photoParticles = particleSystem.filter(p => p.type === 'PHOTO');
@@ -255,6 +255,9 @@
             const hint = document.getElementById('gesture-hint');
             hint.innerText = `准备展示第 ${currentPhotoIndex + 1} 张照片...`;
 
+            // 如果当前是TREE状态，立刻散开（50ms延迟），如果是从上一张图切过来，保持1.5s节奏
+            const delay = (STATE.mode === 'TREE') ? 50 : 1500;
+
             autoPlayTimer = setTimeout(() => {
                 setMode('SCATTER');
                 setTimeout(() => {
@@ -262,7 +265,7 @@
                      STATE.focusTarget = photoParticles[currentPhotoIndex].mesh;
                      STATE.focusType = Math.floor(Math.random() * 4);
                 }, 500); // Wait 0.5s before focus
-            }, 1500); // Wait 1.5s before scatter (TREE duration)
+            }, delay); 
         };
         
         window.startRotate=(d)=> { if(d==='up')manualRotateState.x=-1; if(d==='down')manualRotateState.x=1; if(d==='left')manualRotateState.y=-1; if(d==='right')manualRotateState.y=1; };
@@ -312,9 +315,6 @@
                 // 按 Z 触发双重停顿序列
                 if (k === 'z') window.cycleNextPhoto(); 
                 
-                // x 键保留功能但UI已删除，防误触可保留或注释掉
-                // if (k === 'x') cycleNextPhoto(); // 也可以把 X 映射到新逻辑
-
                 if (code === 'ArrowUp') manualRotateState.x = -1;
                 if (code === 'ArrowDown') manualRotateState.x = 1;
                 if (code === 'ArrowLeft') manualRotateState.y = -1;
@@ -386,7 +386,7 @@
         function renderWebcamPreview(){const c=document.getElementById('webcam-canvas'),x=c.getContext('2d',{willReadFrequently:true});function d(){if(videoElement.readyState>=2)x.drawImage(videoElement,0,0,c.width,c.height);requestAnimationFrame(d)}d()}
         let lvt=-1;async function predictWebcam(){if(videoElement&&videoElement.currentTime!==lvt&&handLandmarker){lvt=videoElement.currentTime;const r=handLandmarker.detectForVideo(videoElement,performance.now());processGestures(r);document.getElementById('cam-status').classList.toggle('active',r.landmarks.length>0);}requestAnimationFrame(predictWebcam);}
         
-        // 修改后的手势处理：支持 OK手势/捏合 触发自动序列，带1秒冷却
+        // 修改后的手势处理：Open=Next/Cycle, Fist=Tree
         function processGestures(r){
             if(r.landmarks&&r.landmarks.length>0){
                 STATE.hand.detected=true;
@@ -395,22 +395,25 @@
                 STATE.hand.y=(lm[9].y-0.5)*2;
                 
                 const thumb=lm[4], index=lm[8];
-                const pd=Math.hypot(thumb.x-index.x, thumb.y-index.y); // 捏合/OK手势距离
+                const pd=Math.hypot(thumb.x-index.x, thumb.y-index.y); 
                 
-                // 如果是 FOCUS 模式，只要距离大了就散开（手张开）
-                if(STATE.mode==='FOCUS'){
-                    if(pd > 0.1) setMode('SCATTER');
+                // 1. 握拳/捏合 (Pinch/Fist) -> 聚合 (Space)
+                // 阈值设为 0.06，比较灵敏
+                if(pd < 0.06) { 
+                    if(STATE.mode !== 'TREE') setMode('TREE');
                     return;
                 }
-                
-                // 核心修改：OK手势触发自动序列 (带1秒冷却，防止连续触发)
-                if(pd < 0.05) { 
+
+                // 2. 张开手掌 (Open Hand) -> 抓取照片/下一张 (Z)
+                // 阈值设为 0.15 (大拇指和食指张开)
+                // 增加冷却时间，防止连续触发
+                if(pd > 0.15) {
                     const now = Date.now();
-                    if(now - lastGestureTime > 1000) { // 1s Cooldown
-                        cycleNextPhoto(); // 触发双重停顿序列
+                    if(now - lastGestureTime > 1500) { 
+                        cycleNextPhoto(); 
                         lastGestureTime = now;
                     }
-                } 
+                }
             } else STATE.hand.detected=false;
         }
 
